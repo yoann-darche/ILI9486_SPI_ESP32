@@ -124,5 +124,30 @@ void loop() {
 
     delay(10000);
 
+    tft.fillScreen(0);
+    tft.printBottomUpScroll("> Start of the LOCATE and PrintChar");
+    delay(3000);
+
+    for(i=0; i<50; i++) {
+        tft.Locate(random(39),random(33));
+        for(int j=0; j<30;j++) {
+            tft.setForegroundColor(random(65535));
+            tft.PrintChar("[^_^]");
+        }
+        delay(200);
+    }
+
+    delay(5000);
+
+    tft.fillScreen(0);
+    tft.Locate(0,10);
+    char t[]="1";
+    for(i=0;i<256;i++) {
+        t[0]=i;
+        tft.PrintChar(t);
+    }
+
+    delay(5000);
+
 
 }

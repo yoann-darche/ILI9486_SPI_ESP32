@@ -1,3 +1,32 @@
+/**
+ * The MIT License (MIT)
+ *
+ * Copyright (c) 2018 by Yoann Darche
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ *
+ * Somme parts like drawLine, ili9486_init_sequence comes from Adafruit_ILI9486_STM32 lib: 
+ * https://github.com/stevstrong/Adafruit_ILI9486_STM32
+ * then modified to support ESP32 by IOXhop (www.ioxhop.com) : Adafruit_ILI9486_ESP32
+ */
+
+
 #include <arduino.h>
 #include "ILI9486_SPI_ESP32.h"
 #include "font.h"
@@ -48,10 +77,7 @@ const uint8_t ili9486_init_sequence[] =
 ******************************************************************************/
 void ILI9486_SPI_ESP32::begin(void)
 {
-
-
 	begin(TFT_SCK, TFT_MOSI, TFT_DC, TFT_CS, TFT_MISO, TFT_RST, TFT_BLK);
-
 }
 
 /******************************************************************************
@@ -103,9 +129,7 @@ void ILI9486_SPI_ESP32::begin(uint8_t spiClk, uint8_t spiMOSI, uint8_t tftDC, ui
 	if (_tftBLK > 0) {
 		digitalWrite(_tftBLK, HIGH);
 	}
-
 }
-
 
 /*****************************************************************************/
 void ILI9486_SPI_ESP32::setAddrWindow(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1)
@@ -215,11 +239,8 @@ void ILI9486_SPI_ESP32::drawFastVLine(int16_t x, int16_t y, int16_t h, uint16_t 
 			pushColorN(color,h);
 		}
 	}
-	
-	
-
-	
 }
+
 /*****************************************************************************/
 void ILI9486_SPI_ESP32::drawFastHLine(int16_t x, int16_t y, int16_t w, uint16_t color)
 {
@@ -235,15 +256,18 @@ void ILI9486_SPI_ESP32::drawFastHLine(int16_t x, int16_t y, int16_t w, uint16_t 
 	pushColorN(color,w);
 }
 
-/*****************************************************************************/
+/****************************************************************************
+ * Clean the screen, and reset the text cursor to 0,0.                     **
+ * *********************************************************************** */
 void ILI9486_SPI_ESP32::fillScreen(uint16_t color)
-{
-	
-	setAddrWindow(0, VData.VSP,  _width, _height);
-	pushColorN(color, (_width*_height) );
-
+{	
 	if(VData.VSP != 0) { setVScrollStart(VData.TFA); }
 
+	setAddrWindow(0, 0,  _width, _height);
+	pushColorN(color, (_width*_height) );
+
+	c_x = 0;
+	c_y = 0;
 }
 
 /*****************************************************************************/
@@ -262,10 +286,11 @@ void ILI9486_SPI_ESP32::fillRect(int16_t x, int16_t y, int16_t w, int16_t h, uin
 	pushColorN(color, (w*h) );
 }
 
-/*
-* Draw lines faster by calculating straight sections and drawing them with fastVline and fastHline.
-*/
-/*****************************************************************************/
+
+/******************************************************************************
+ * Draw lines faster by calculating straight sections and drawing them with   *
+ * fastVline and fastHline.                                                   *
+ * ************************************************************************* */
 void ILI9486_SPI_ESP32::drawLine(int16_t x0, int16_t y0,int16_t x1, int16_t y1, uint16_t color)
 {
 	if ((y0 < 0 && y1 <0) || (y0 > _height && y1 > _height)) return;
@@ -328,23 +353,19 @@ void ILI9486_SPI_ESP32::drawLine(int16_t x0, int16_t y0,int16_t x1, int16_t y1, 
 			if (err < 0) {
 				int16_t len = x0 - xbegin;
 				if (len) {
-					drawFastVLine (y0, xbegin, len + 1, color);
-					//writeVLine_cont_noCS_noFill(y0, xbegin, len + 1);
+					drawFastVLine (y0, xbegin, len + 1, color);					
 				}
 				else {
-					drawPixel(y0, x0, color);
-					//writePixel_cont_noCS(y0, x0, color);
+					drawPixel(y0, x0, color);					
 				}
 				xbegin = x0 + 1;
 				y0 += ystep;
 				err += dx;
 			}
 		}
-		if (x0 > xbegin + 1) {
-			//writeVLine_cont_noCS_noFill(y0, xbegin, x0 - xbegin);
+		if (x0 > xbegin + 1) {			
 			drawFastVLine(y0, xbegin, x0 - xbegin, color);
 		}
-
 	}
 	else {
 		for (; x0 <= x1; x0++) {
@@ -353,25 +374,20 @@ void ILI9486_SPI_ESP32::drawLine(int16_t x0, int16_t y0,int16_t x1, int16_t y1, 
 				int16_t len = x0 - xbegin;
 				if (len) {
 					drawFastHLine(xbegin, y0, len + 1, color);
-					//writeHLine_cont_noCS_noFill(xbegin, y0, len + 1);
 				}
 				else {
-					drawPixel(x0, y0, color);
-					//writePixel_cont_noCS(x0, y0, color);
+					drawPixel(x0, y0, color);					
 				}
 				xbegin = x0 + 1;
 				y0 += ystep;
 				err += dx;
 			}
 		}
-		if (x0 > xbegin + 1) {
-			//writeHLine_cont_noCS_noFill(xbegin, y0, x0 - xbegin);
+		if (x0 > xbegin + 1) {			
 			drawFastHLine(xbegin, y0, x0 - xbegin, color);
 		}
 	}
 }
-
-
 
 /*****************************************************************************/
 // Pass 8-bit (each) R,G,B, get back 16-bit packed color
@@ -390,9 +406,10 @@ void ILI9486_SPI_ESP32::setBackgroundColor(uint16_t color) {
 	backgroundColor = color;
 }
 
-
-
-/*****************************************************************************/
+/******************************************************************************
+ * Set the rotation of the Screen, be carreful with the VScroll, not         **
+ * supported for mode 1,3.                                                   **
+ * ************************************************************************* */
 void ILI9486_SPI_ESP32::setRotation(uint8_t m)
 {
 	writeCommand(ILI9486_MADCTL);
@@ -464,7 +481,7 @@ void ILI9486_SPI_ESP32::doBotomUpScroll(uint16_t nbLine, uint8_t isClean, uint16
 
 	uint16_t tVSP;
 
-	if(delay == 0) {
+	if(tDelay == 0) {
 		tVSP = (VData.VSP + nbLine) % VData.VSA;
 		setVScrollStart(tVSP);
 	} else {
@@ -508,7 +525,7 @@ void ILI9486_SPI_ESP32::printBottomUpScroll(const char *Text) {
 
 			for(int p=0;p<8;p++) {
 
-				if(((code >> 7-p) & 0x01) == 0) {
+				if(((code >> (7-p)) & 0x01) == 0) {
 					// Draw a backgroundColor
 					SPI.transfer( (((backgroundColor>>11) & 0xb00011111) << 3) & 0xfc);
 					SPI.transfer( (((backgroundColor>>5)  & 0xb00111111) << 2) & 0xfc);
@@ -531,16 +548,9 @@ void ILI9486_SPI_ESP32::printBottomUpScroll(const char *Text) {
 			SPI.transfer( (((backgroundColor>>5)  & 0xb00111111) << 2) & 0xfc);
 			SPI.transfer( ((backgroundColor       & 0xb00011111) << 3) & 0xfc);
 		}
-
-
 		CS_OFF();		
-
 	}
-	
-
-
 }
-
 
 /* ============================================================================
 == Character utilities                                                       ==
@@ -658,8 +668,6 @@ void ILI9486_SPI_ESP32::PrintCharAt(uint8_t x, uint8_t y, const char *Text, uint
 
 		CD_DATA();
 		CS_ON();
-
-
 		for(int i=0; i<nbCar;i++) {
 
 			char c = Text[i+TextStart];
@@ -668,7 +676,7 @@ void ILI9486_SPI_ESP32::PrintCharAt(uint8_t x, uint8_t y, const char *Text, uint
 
 			for(int p=0;p<8;p++) {
 
-				if(((code >> 7-p) & 0x01) == 0) {
+				if(((code >> (7-p)) & 0x01) == 0) {
 					// Draw a backgroundColor
 					SPI.transfer( (((backgroundColor>>11) & 0xb00011111) << 3) & 0xfc);
 					SPI.transfer( (((backgroundColor>>5)  & 0xb00111111) << 2) & 0xfc);
@@ -693,34 +701,8 @@ void ILI9486_SPI_ESP32::PrintCharAt(uint8_t x, uint8_t y, const char *Text, uint
 				SPI.transfer( ((backgroundColor       & 0xb00011111) << 3) & 0xfc);
 			}
 		}
-
-		CS_OFF();
-
-						
+		CS_OFF();				
 	}
-/*
-	if(doScroll == 1) {
-		for(int i=0;i< (_height % c_sizeH);i++) {
-			uint16_t tVSP = (_VSP+1) % _height;
-			setVScrollStart(tVSP);
-			py = (_VSP + (_height-1)) % _height;
-			setAddrWindow(0,py, _width-1,py);
-			CD_DATA();
-			CS_ON();
-			for(int j=0;j<_width-1;j++) {
-				// Draw a backgroundColor
-				SPI.transfer( (((backgroundColor>>11) & 0xb00011111) << 3) & 0xfc);
-				SPI.transfer( (((backgroundColor>>5)  & 0xb00111111) << 2) & 0xfc);
-				SPI.transfer( ((backgroundColor       & 0xb00011111) << 3) & 0xfc);
-
-				SPI.transfer( 64);
-				SPI.transfer( 128);
-				SPI.transfer( 64);
-			}
-			CS_OFF();
-		}
-	} */
-
 }
 
 /* ============================================================================
