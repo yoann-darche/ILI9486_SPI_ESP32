@@ -2,21 +2,15 @@
 #include "ILI9486_SPI_ESP32.h"
 #include "font.h"
 
-uint16_t lineBuffer[1];
-
 /*****************************************************************************/
 // Constructor uses hardware SPI, the pins being specific to each device
 /*****************************************************************************/
-
-#if defined(__ADAFRUIT_COMPATIBLE__)
-  ILI9486_SPI_ESP32::ILI9486_SPI_ESP32(void) : Adafruit_GFX(TFTWIDTH, TFTHEIGHT) {}
-#else
-  ILI9486_SPI_ESP32::ILI9486_SPI_ESP32(void) {
+ILI9486_SPI_ESP32::ILI9486_SPI_ESP32(void) {
 
     _height = TFTHEIGHT;
     _width  = TFTWIDTH;
 }
-#endif
+
 
 /*******************************************************************************
 ** Boot sequence of the LCD (SPI 4 Wire and 18bit color)                      **
@@ -184,7 +178,7 @@ void ILI9486_SPI_ESP32::drawPixel(int16_t x, int16_t y, uint16_t color)
 	if ((x < 0) || (x >= _width) || (y < 0) || (y >= _height)) return;
 
 	// Correction against the scroll starting point
-	y = (_VSP + y) % _height;
+	y = (VData.VSP + y) % _height;
 
 	setAddrWindow(x, y, x, y);
 	pushColor(color);
@@ -198,7 +192,7 @@ void ILI9486_SPI_ESP32::drawFastVLine(int16_t x, int16_t y, int16_t h, uint16_t 
 	if (h < 2 ) { drawPixel(x, y, color); return; }
 
 	// Correction against the scroll starting point
-	if((h == _height) || (_VSP == 0)) {
+	if((h == _height) || (VData.VSP == VData.BFA)) {
 
 		setAddrWindow(x, y, x, y + h - 1);
 		pushColorN(color,h);
@@ -206,7 +200,7 @@ void ILI9486_SPI_ESP32::drawFastVLine(int16_t x, int16_t y, int16_t h, uint16_t 
 	}
 	else
 	{
-		y = (_VSP + y) % _height;
+		y = (VData.VSP + y) % VData.VSA + VData.TFA;
 
 		if((y+h-1) > _height) {
 
@@ -235,7 +229,7 @@ void ILI9486_SPI_ESP32::drawFastHLine(int16_t x, int16_t y, int16_t w, uint16_t 
 	if (w < 2 ) { drawPixel(x, y, color); return; }
 
 
-	y = (_VSP + y) % _height;
+	y = (VData.VSP + y) % _height;
 
 	setAddrWindow(x, y, x + w - 1, y);
 	pushColorN(color,w);
@@ -245,10 +239,10 @@ void ILI9486_SPI_ESP32::drawFastHLine(int16_t x, int16_t y, int16_t w, uint16_t 
 void ILI9486_SPI_ESP32::fillScreen(uint16_t color)
 {
 	
-	setAddrWindow(0, _VSP,  _width, _height);
+	setAddrWindow(0, VData.VSP,  _width, _height);
 	pushColorN(color, (_width*_height) );
 
-	if(_VSP != 0) { setVScrollStart(0); }
+	if(VData.VSP != 0) { setVScrollStart(VData.TFA); }
 
 }
 
@@ -441,17 +435,24 @@ void ILI9486_SPI_ESP32::invertDisplay(uint8_t i)
 ============================================================================ */
 void ILI9486_SPI_ESP32::setVerticalScrolling(uint16_t TFA, uint16_t VSA, uint16_t BFA) {
 
+	// The sum of this 3 parameter need to be equal to the heigh of the screen
+	if(TFA+VSA+BFA != _height) return;
+
 	writeCommand(ILI9486_VSCROLL_DEF);
 	writeData16(TFA);
 	writeData16(VSA);
 	writeData16(BFA);
+	VData.TFA = TFA;
+	VData.VSA = VSA;
+	VData.BFA = BFA;
+	setVScrollStart(TFA);
 }
 
 
 void ILI9486_SPI_ESP32::setVScrollStart(uint16_t VSP) {	
 	writeCommand(ILI9486_VSCROLL_SADDR);
-	writeData16(VSP);
-	_VSP = VSP;
+	writeData16(VSP+VData.TFA);
+	VData.VSP = VSP;
 }
 
 /* ============================================================================
@@ -464,14 +465,14 @@ void ILI9486_SPI_ESP32::doBotomUpScroll(uint16_t nbLine, uint8_t isClean, uint16
 	uint16_t tVSP;
 
 	if(delay == 0) {
-		tVSP = (_VSP + nbLine) % _height;
+		tVSP = (VData.VSP + nbLine) % VData.VSA;
 		setVScrollStart(tVSP);
 	} else {
 
 		for(int i=0; i < nbLine; i++) {
-			tVSP = (_VSP+1) % _height;
+			tVSP = (VData.VSP+1) % VData.VSA;
 			setVScrollStart(tVSP);
-			if(isClean != 0) drawFastHLine(0,_height-1,_width,backgroundColor);
+			if(isClean != 0) drawFastHLine(0,VData.VSA+VData.TFA-1,_width,backgroundColor); 
 			delay(tDelay);
 		}
 
@@ -487,10 +488,11 @@ void ILI9486_SPI_ESP32::printBottomUpScroll(const char *Text) {
 
 	for(int line=0; line < c_sizeH; line++) {
 
-		tVSP = (_VSP+1) % _height;
+		tVSP = (VData.VSP+1) % VData.VSA;
 		setVScrollStart(tVSP);
 
-		y = (_VSP + (_height-1)) % _height;
+		//y = (_VSP + (_height-1)) % _height;
+		y = (VData.VSP + (VData.VSA-1)) % VData.VSA + VData.TFA;
 
 		setAddrWindow(0,y, _width-1,y);	
 
@@ -624,12 +626,12 @@ void ILI9486_SPI_ESP32::PrintCharAt(uint8_t x, uint8_t y, const char *Text, uint
 	// Check if the logical position is fine
 	if(x >= (_width/c_sizeW))  return;
 
-	uint8_t doScroll = (y >= (_height/c_sizeH)) ? 1 :0;
+	uint8_t doScroll = (y >= (VData.VSA/c_sizeH)) ? 1 :0;
 
-	y = (doScroll == 1) ? _height/c_sizeH-1 : y;
+	y = (doScroll == 1) ? VData.VSA/c_sizeH-1 : y;
 
 	uint16_t px = x*c_sizeW;
-	uint16_t py = (_VSP + (y * c_sizeH)) % _height;
+	uint16_t py = (VData.VSP + (y * c_sizeH)) % VData.VSA + VData.TFA;
 	
 	// Check that text start is in coherence with the Text array
 	uint16_t _lenText = strlen(Text);
@@ -644,9 +646,9 @@ void ILI9486_SPI_ESP32::PrintCharAt(uint8_t x, uint8_t y, const char *Text, uint
 
 		if(doScroll == 1) {
 
-			uint16_t tVSP = (_VSP+1) % _height;
+			uint16_t tVSP = (VData.VSP+1) %  VData.VSA;
 			setVScrollStart(tVSP);
-			py = (_VSP + (_height-1)) % _height;
+			py = (VData.VSP + (VData.VSA-1)) % VData.VSA + VData.TFA;
 			setAddrWindow(0,py, _width-1,py);	
 		}
 		else
@@ -696,7 +698,7 @@ void ILI9486_SPI_ESP32::PrintCharAt(uint8_t x, uint8_t y, const char *Text, uint
 
 						
 	}
-
+/*
 	if(doScroll == 1) {
 		for(int i=0;i< (_height % c_sizeH);i++) {
 			uint16_t tVSP = (_VSP+1) % _height;
@@ -707,9 +709,9 @@ void ILI9486_SPI_ESP32::PrintCharAt(uint8_t x, uint8_t y, const char *Text, uint
 			CS_ON();
 			for(int j=0;j<_width-1;j++) {
 				// Draw a backgroundColor
-				/*SPI.transfer( (((backgroundColor>>11) & 0xb00011111) << 3) & 0xfc);
+				SPI.transfer( (((backgroundColor>>11) & 0xb00011111) << 3) & 0xfc);
 				SPI.transfer( (((backgroundColor>>5)  & 0xb00111111) << 2) & 0xfc);
-				SPI.transfer( ((backgroundColor       & 0xb00011111) << 3) & 0xfc);*/
+				SPI.transfer( ((backgroundColor       & 0xb00011111) << 3) & 0xfc);
 
 				SPI.transfer( 64);
 				SPI.transfer( 128);
@@ -717,7 +719,7 @@ void ILI9486_SPI_ESP32::PrintCharAt(uint8_t x, uint8_t y, const char *Text, uint
 			}
 			CS_OFF();
 		}
-	}
+	} */
 
 }
 

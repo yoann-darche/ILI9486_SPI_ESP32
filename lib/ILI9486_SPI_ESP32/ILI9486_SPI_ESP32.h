@@ -57,6 +57,17 @@
 
 #define swap(a, b) { int16_t t = a; a = b; b = t; }
 
+
+/* ============================================================================
+== VScroll Information                                                       ==
+============================================================================ */
+typedef struct _VScrollData {
+	uint16_t VSP = 0;     // Vertical scroll position (Default=0)
+	uint16_t TFA = 0;
+	uint16_t VSA = 480;
+	uint16_t BFA = 0;
+} VScrollData;
+
 /*============================================================================
 == Color définition                                                         ==
 ============================================================================*/
@@ -85,6 +96,7 @@ class TColor {
 	  uint8_t G;
 	  uint8_t B;
 };
+
 
 /* ============================================================================
 ==  Classe definition                                                        ==
@@ -157,12 +169,9 @@ public:
 
 protected:
 
-  #ifndef __ADAFRUIT_COMPATIBLE__
-
     uint16_t _height;
     uint16_t _width;
 
-  #endif
 
 	uint8_t _spiClk;
 	uint8_t _spiMISO;
@@ -172,12 +181,13 @@ protected:
 	uint8_t _tftCS;
 	uint8_t _tftBLK;
 	uint8_t	tabcolor;
-	uint16_t _VSP = 0;     // Vertical scroll position (Default=0)
-
 
 	// Active color
 	uint16_t foregroundColor = 0xFFFF;
 	uint16_t backgroundColor = 0x0000;
+
+	// Scrolling Data
+	VScrollData VData;
 
 	// Character variable
 	uint8_t c_x = 0;

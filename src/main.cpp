@@ -46,6 +46,8 @@ void setup() {
 
     tft.SetConsolFont(Consol_VGA_8x14,8,14);
 
+    tft.setVerticalScrolling(0,476,4);  // For 8x14, with have 4 lines
+
 }
 
 void loop() {
@@ -58,7 +60,7 @@ void loop() {
     drawATest();
 
 
-    tft.setVerticalScrolling(0,480,0);
+    
     
     /*
     for(l=1;l<6;l++) {
