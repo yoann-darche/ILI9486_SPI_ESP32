@@ -52,7 +52,7 @@ const uint8_t ili9486_init_sequence[] =
 	1, 0x11,		// Sleep OUT
 	DELAY, 150,
 	2, 0x3A, 0x66,	// use 18 bits per pixel color the only mode available on SPI-3wire ou SPI-4wire
-	2, 0x36, 0x48,	// MX, BGR == rotation 0
+	2, 0x36, 0x40,	// MX, -BGR == rotation 0
 	2, 0xC2, 0x44,	// Power Control 3
 	// VCOM Control 1
 	5, 0xC5, 0x00, 0x00, 0x00, 0x00,
@@ -406,6 +406,12 @@ void ILI9486_SPI_ESP32::setBackgroundColor(uint16_t color) {
 	backgroundColor = color;
 }
 
+void ILI9486_SPI_ESP32::sendColor(uint16_t color) {
+	SPI.transfer((color>>8) & 0x0F4);
+	SPI.transfer((color>>3)  & 0x0FC);
+	SPI.transfer((color<<3)   & 0x0F4);
+}
+
 /******************************************************************************
  * Set the rotation of the Screen, be carreful with the VScroll, not         **
  * supported for mode 1,3.                                                   **
@@ -416,22 +422,22 @@ void ILI9486_SPI_ESP32::setRotation(uint8_t m)
 	uint8_t rotation = m & 3; // can't be higher than 3
 	switch (rotation) {
 		case 0:
-			writeData(MADCTL_MX |MADCTL_BGR);
+			writeData(MADCTL_MX );
 			_width  = TFTWIDTH;
 			_height = TFTHEIGHT;
 			break;
 		case 1:
-			writeData(MADCTL_MV | MADCTL_BGR);
+			writeData(MADCTL_MV );
 			_width  = TFTHEIGHT;
 			_height = TFTWIDTH;
 			break;
 		case 2:
-			writeData(MADCTL_MY | MADCTL_BGR);
+			writeData(MADCTL_MY );
 			_width  = TFTWIDTH;
 			_height = TFTHEIGHT;
 			break;
 		case 3:
-			writeData(MADCTL_MX | MADCTL_MY | MADCTL_MV | MADCTL_BGR);
+			writeData(MADCTL_MX | MADCTL_MY | MADCTL_MV );
 			_width  = TFTHEIGHT;
 			_height = TFTWIDTH;
 			break;
@@ -527,15 +533,11 @@ void ILI9486_SPI_ESP32::printBottomUpScroll(const char *Text) {
 
 				if(((code >> (7-p)) & 0x01) == 0) {
 					// Draw a backgroundColor
-					SPI.transfer( (((backgroundColor>>11) & 0xb00011111) << 3) & 0xfc);
-					SPI.transfer( (((backgroundColor>>5)  & 0xb00111111) << 2) & 0xfc);
-					SPI.transfer( ((backgroundColor       & 0xb00011111) << 3) & 0xfc);
+					sendColor(backgroundColor);
 				}
 				else {
 					// Draw a white one
-					SPI.transfer( (((foregroundColor>>11) & 0xb00011111) << 3) & 0xfc);
-					SPI.transfer( (((foregroundColor>>5)  & 0xb00111111) << 2) & 0xfc);
-					SPI.transfer( ((foregroundColor       & 0xb00011111) << 3) & 0xfc);
+					sendColor(foregroundColor);
 				}
 
 			}
@@ -544,9 +546,7 @@ void ILI9486_SPI_ESP32::printBottomUpScroll(const char *Text) {
 
 		for(i=(tLen*8)-1;i<_width-1;i++) {
 			// Draw a backgroundColor
-			SPI.transfer( (((backgroundColor>>11) & 0xb00011111) << 3) & 0xfc);
-			SPI.transfer( (((backgroundColor>>5)  & 0xb00111111) << 2) & 0xfc);
-			SPI.transfer( ((backgroundColor       & 0xb00011111) << 3) & 0xfc);
+			sendColor(backgroundColor);
 		}
 		CS_OFF();		
 	}
@@ -586,8 +586,6 @@ uint8_t ILI9486_SPI_ESP32::Locate(uint8_t x, uint8_t y)
 
 /******************************************************************************
  * Print the char array at the active cursor position.                       **
- * 		\n is interpreted as new line, first column.                         **
- *  	\t is select the location of the next tabstop every 5 charcarter     **
  *****************************************************************************/
 void ILI9486_SPI_ESP32::PrintChar(const char *Text) {
 
@@ -678,15 +676,11 @@ void ILI9486_SPI_ESP32::PrintCharAt(uint8_t x, uint8_t y, const char *Text, uint
 
 				if(((code >> (7-p)) & 0x01) == 0) {
 					// Draw a backgroundColor
-					SPI.transfer( (((backgroundColor>>11) & 0xb00011111) << 3) & 0xfc);
-					SPI.transfer( (((backgroundColor>>5)  & 0xb00111111) << 2) & 0xfc);
-					SPI.transfer( ((backgroundColor       & 0xb00011111) << 3) & 0xfc);
+					sendColor(backgroundColor);
 				}
 				else {
 					// Draw a white one
-					SPI.transfer( (((foregroundColor>>11) & 0xb00011111) << 3) & 0xfc);
-					SPI.transfer( (((foregroundColor>>5)  & 0xb00111111) << 2) & 0xfc);
-					SPI.transfer( ((foregroundColor       & 0xb00011111) << 3) & 0xfc);
+					sendColor(foregroundColor);
 				}
 
 			}
@@ -696,9 +690,7 @@ void ILI9486_SPI_ESP32::PrintCharAt(uint8_t x, uint8_t y, const char *Text, uint
 		if(doScroll == 1) {
 			for(int i=(nbCar*8)-1;i<_width-1;i++) {
 				// Draw a backgroundColor
-				SPI.transfer( (((backgroundColor>>11) & 0xb00011111) << 3) & 0xfc);
-				SPI.transfer( (((backgroundColor>>5)  & 0xb00111111) << 2) & 0xfc);
-				SPI.transfer( ((backgroundColor       & 0xb00011111) << 3) & 0xfc);
+				sendColor(backgroundColor);
 			}
 		}
 		CS_OFF();				

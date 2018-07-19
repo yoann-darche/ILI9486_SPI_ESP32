@@ -6,14 +6,7 @@
 #ifndef _ILI9486H_SPI_ESP32_
 #define _ILI9486H_SPI_ESP32_
 
-#undef __ADAFRUIT_COMPATIBLE__   // Define this if you want to use it with adfruit library
-
-#ifdef __ADAFRUIT_COMPATIBLE__
- #include <Adafruit_GFX.h>
-#endif
-
 #include <SPI.h>
-
 #include "font.h"
 
 /* Size of the screen */
@@ -101,11 +94,7 @@ class TColor {
 /* ============================================================================
 ==  Classe definition                                                        ==
 ============================================================================ */
-#if defined(__ADAFRUIT_COMPATIBLE__)
-  class ILI9486_SPI_ESP32 : public Adafruit_GFX
-#else
-  class ILI9486_SPI_ESP32
-#endif
+class ILI9486_SPI_ESP32
 {
 public:
 
@@ -149,16 +138,11 @@ public:
 	void setForegroundColor(uint16_t color);
 	void setBackgroundColor(uint16_t color);
 
-
-	
-
 	// Scrolling Management
 	void setVerticalScrolling(uint16_t TFA, uint16_t VSA, uint16_t BFA);
 	void setVScrollStart(uint16_t VSP);
 	void doBotomUpScroll(uint16_t nbLine, uint8_t isClean, uint16_t tDelay);
 	
-
-
 	// Characater function
 	void SetConsolFont(const unsigned char *Font, uint8_t sizeW, uint8_t sizeH);
 	uint8_t Locate(uint8_t x, uint8_t y);
@@ -196,6 +180,9 @@ protected:
 	uint8_t c_sizeH = 8;
 	const unsigned char * c_font = Consol_CGATHIN_8x8;
 
+
+
+	void sendColor(uint16_t color) ;
 	void writeCommand(uint8_t c);
 	void writeData(uint8_t d);
 	void writeData16(uint16_t d);
