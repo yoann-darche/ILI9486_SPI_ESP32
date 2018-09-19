@@ -38,6 +38,10 @@ ILI9486_SPI_ESP32::ILI9486_SPI_ESP32(void) {
 
     _height = TFTHEIGHT;
     _width  = TFTWIDTH;
+
+	backgroundColor.setRGB(0,0,0);
+	foregroundColor.setRGB(255,255,255);
+
 }
 
 
@@ -52,7 +56,7 @@ const uint8_t ili9486_init_sequence[] =
 	1, 0x11,		// Sleep OUT
 	DELAY, 150,
 	2, 0x3A, 0x66,	// use 18 bits per pixel color the only mode available on SPI-3wire ou SPI-4wire
-	2, 0x36, 0x40,	// MX, -BGR == rotation 0
+	2, 0x36, 0x48,	// MX, BGR == rotation 0
 	2, 0xC2, 0x44,	// Power Control 3
 	// VCOM Control 1
 	5, 0xC5, 0x00, 0x00, 0x00, 0x00,
@@ -259,15 +263,12 @@ void ILI9486_SPI_ESP32::drawFastHLine(int16_t x, int16_t y, int16_t w, uint16_t 
 /****************************************************************************
  * Clean the screen, and reset the text cursor to 0,0.                     **
  * *********************************************************************** */
-void ILI9486_SPI_ESP32::fillScreen(uint16_t color)
+void ILI9486_SPI_ESP32::fillScreen(TColor& color)
 {	
 	if(VData.VSP != 0) { setVScrollStart(VData.TFA); }
 
 	setAddrWindow(0, 0,  _width, _height);
 	pushColorN(color, (_width*_height) );
-
-	c_x = 0;
-	c_y = 0;
 }
 
 /*****************************************************************************/
@@ -399,12 +400,23 @@ uint16_t ILI9486_SPI_ESP32::color565(uint8_t r, uint8_t g, uint8_t b)
 
 
 void ILI9486_SPI_ESP32::setForegroundColor(uint16_t color) {
-	foregroundColor = color;
+	foregroundColor.set565(color);
 }
 
 void ILI9486_SPI_ESP32::setBackgroundColor(uint16_t color) {
-	backgroundColor = color;
+	backgroundColor.set565(color);
 }
+
+
+void ILI9486_SPI_ESP32::setForegroundColor(TColor &color) {
+	foregroundColor.copy(color);	
+}  
+
+void ILI9486_SPI_ESP32::setBackgroundColor(TColor &color) {
+	backgroundColor.copy(color);
+}
+
+
 
 void ILI9486_SPI_ESP32::sendColor(uint16_t color) {
 	SPI.transfer((color>>8) & 0x0F4);
@@ -422,22 +434,22 @@ void ILI9486_SPI_ESP32::setRotation(uint8_t m)
 	uint8_t rotation = m & 3; // can't be higher than 3
 	switch (rotation) {
 		case 0:
-			writeData(MADCTL_MX );
+			writeData(MADCTL_MX | MADCTL_BGR);
 			_width  = TFTWIDTH;
 			_height = TFTHEIGHT;
 			break;
 		case 1:
-			writeData(MADCTL_MV );
+			writeData(MADCTL_MV | MADCTL_BGR );
 			_width  = TFTHEIGHT;
 			_height = TFTWIDTH;
 			break;
 		case 2:
-			writeData(MADCTL_MY );
+			writeData(MADCTL_MY | MADCTL_BGR );
 			_width  = TFTWIDTH;
 			_height = TFTHEIGHT;
 			break;
 		case 3:
-			writeData(MADCTL_MX | MADCTL_MY | MADCTL_MV );
+			writeData(MADCTL_MX | MADCTL_MY | MADCTL_MV | MADCTL_BGR);
 			_width  = TFTHEIGHT;
 			_height = TFTWIDTH;
 			break;
@@ -487,7 +499,7 @@ void ILI9486_SPI_ESP32::doBotomUpScroll(uint16_t nbLine, uint8_t isClean, uint16
 
 	uint16_t tVSP;
 
-	if(tDelay == 0) {
+	if((tDelay == 0) && (isClean == 0)) {
 		tVSP = (VData.VSP + nbLine) % VData.VSA;
 		setVScrollStart(tVSP);
 	} else {
@@ -495,8 +507,11 @@ void ILI9486_SPI_ESP32::doBotomUpScroll(uint16_t nbLine, uint8_t isClean, uint16
 		for(int i=0; i < nbLine; i++) {
 			tVSP = (VData.VSP+1) % VData.VSA;
 			setVScrollStart(tVSP);
-			if(isClean != 0) drawFastHLine(0,VData.VSA+VData.TFA-1,_width,backgroundColor); 
-			delay(tDelay);
+
+			if(isClean != 0) {
+				drawFastHLine(0, _height-1 , _width, backgroundColor.get565()); 
+			}
+			if(tDelay > 0) delay(tDelay);
 		}
 
 	}
@@ -508,6 +523,10 @@ void ILI9486_SPI_ESP32::printBottomUpScroll(const char *Text) {
 	uint16_t tVSP, y;
 
 	uint16_t tLen = strlen(Text);
+
+	uint16_t bg=backgroundColor.get565();
+	uint16_t fg=foregroundColor.get565();
+
 
 	for(int line=0; line < c_sizeH; line++) {
 
@@ -533,11 +552,11 @@ void ILI9486_SPI_ESP32::printBottomUpScroll(const char *Text) {
 
 				if(((code >> (7-p)) & 0x01) == 0) {
 					// Draw a backgroundColor
-					sendColor(backgroundColor);
+					sendColor(bg);
 				}
 				else {
 					// Draw a white one
-					sendColor(foregroundColor);
+					sendColor(fg);
 				}
 
 			}
@@ -546,7 +565,7 @@ void ILI9486_SPI_ESP32::printBottomUpScroll(const char *Text) {
 
 		for(i=(tLen*8)-1;i<_width-1;i++) {
 			// Draw a backgroundColor
-			sendColor(backgroundColor);
+			sendColor(bg);
 		}
 		CS_OFF();		
 	}
@@ -567,58 +586,6 @@ void ILI9486_SPI_ESP32::SetConsolFont(const unsigned char *Font, uint8_t sizeW, 
 	c_sizeH = sizeH;
 }
 
-/******************************************************************************
- * Locate the print cursor x,y.  (0,0) is the first line/first column        **
- * Returen 0 if OK if outside the screen return 1.                           **
- *****************************************************************************/
-uint8_t ILI9486_SPI_ESP32::Locate(uint8_t x, uint8_t y)
-{
-	if ( (x < (_width / c_sizeW)) && (y < (_height / c_sizeH)) ) {
-
-		c_x = x;
-		c_y = y;
-
-		return 0;
-	}
-
-	return 1;
-}
-
-/******************************************************************************
- * Print the char array at the active cursor position.                       **
- *****************************************************************************/
-void ILI9486_SPI_ESP32::PrintChar(const char *Text) {
-
-	int Len = strlen(Text);
-
-	uint8_t maxY = (_height / c_sizeH);
-	uint8_t maxX = (_width / c_sizeW);
-
-	uint16_t pos = 0;
-	while (Len > 0) {
-
-		// We can draw all characters
-		if(c_x + Len <= maxX) {
-			PrintCharAt(c_x,c_y,Text,pos,-1);
-			c_x = c_x + Len;
-			if (c_y >= maxY) c_y=maxY-1;
-			Len = 0;
-			continue;
-		}
-
-		// Get the maximum of character that can be print from the actual position
-		uint8_t nbChar = maxX - c_x;
-		PrintCharAt(c_x,c_y,Text,pos,nbChar);
-		c_x =0;
-		if (c_y >= maxY) c_y=maxY-1;
-		pos += nbChar;
-		Len -= nbChar;
-
-		// go the next line
-		c_y++;
-	}
-
-}
 
 /******************************************************************************
  * Print the char array at the x,y text position, begin at the TextStart for **
@@ -628,7 +595,7 @@ void ILI9486_SPI_ESP32::PrintChar(const char *Text) {
  *  - if y is outside it will be print at the last line with a V-scroll      **
  *  - if TextLen = 255, all character will be printed.                       **
  *****************************************************************************/
-void ILI9486_SPI_ESP32::PrintCharAt(uint8_t x, uint8_t y, const char *Text, uint16_t TextStart, uint8_t TextLen) {
+void ILI9486_SPI_ESP32::PrintStringAt(uint8_t x, uint8_t y, const char *Text, uint16_t TextStart, uint8_t TextLen) {
 
 
 	// Check if the logical position is fine
@@ -645,6 +612,10 @@ void ILI9486_SPI_ESP32::PrintCharAt(uint8_t x, uint8_t y, const char *Text, uint
 	uint16_t _lenText = strlen(Text);
 	if(TextStart > _lenText) return;
 	if( (TextStart+TextLen) > _lenText) TextLen = _lenText - TextStart;
+
+
+	uint16_t bg=backgroundColor.get565();
+	uint16_t fg=foregroundColor.get565();
 
 	// Calculate the real number of character to display accordind the x,y position
 	uint8_t nbCar =  (_width / c_sizeW) - x < TextLen ? (_width / c_sizeW) - x : TextLen;
@@ -676,11 +647,11 @@ void ILI9486_SPI_ESP32::PrintCharAt(uint8_t x, uint8_t y, const char *Text, uint
 
 				if(((code >> (7-p)) & 0x01) == 0) {
 					// Draw a backgroundColor
-					sendColor(backgroundColor);
+					sendColor(bg);
 				}
 				else {
 					// Draw a white one
-					sendColor(foregroundColor);
+					sendColor(fg);
 				}
 
 			}
@@ -690,11 +661,81 @@ void ILI9486_SPI_ESP32::PrintCharAt(uint8_t x, uint8_t y, const char *Text, uint
 		if(doScroll == 1) {
 			for(int i=(nbCar*8)-1;i<_width-1;i++) {
 				// Draw a backgroundColor
-				sendColor(backgroundColor);
+				sendColor(bg);
 			}
 		}
 		CS_OFF();				
 	}
+}
+
+size_t ILI9486_SPI_ESP32::writeAt(uint8_t x, uint8_t y, const uint8_t *Text, uint8_t TextLen) {
+
+
+	// Check if the logical position is fine
+	if(x >= (_width/c_sizeW))  return(0);
+
+	uint8_t doScroll = (y >= (VData.VSA/c_sizeH)) ? 1 :0;
+
+	y = (doScroll == 1) ? VData.VSA/c_sizeH-1 : y;
+
+	uint16_t px = x*c_sizeW;
+	uint16_t py = (VData.VSP + (y * c_sizeH)) % VData.VSA + VData.TFA;
+	
+	
+	uint16_t bg=backgroundColor.get565();
+	uint16_t fg=foregroundColor.get565();
+
+	// Calculate the real number of character to display accordind the x,y position
+	uint8_t nbCar =  (_width / c_sizeW) - x < TextLen ? (_width / c_sizeW) - x : TextLen;
+
+	// for each line of the character font
+	for(int line=0; line < c_sizeH; line++) {
+
+		if(doScroll == 1) {
+
+			uint16_t tVSP = (VData.VSP+1) %  VData.VSA;
+			setVScrollStart(tVSP);
+			py = (VData.VSP + (VData.VSA-1)) % VData.VSA + VData.TFA;
+			setAddrWindow(0,py, _width-1,py);	
+		}
+		else
+		{
+			setAddrWindow(px,py+line, px+nbCar*c_sizeW,py+line);
+		}
+
+		CD_DATA();
+		CS_ON();
+		for(int i=0; i<nbCar;i++) {
+
+			char c = Text[i];
+
+			unsigned char code = pgm_read_byte(c_font + c + (line * 256));
+
+			for(int p=0;p<8;p++) {
+
+				if(((code >> (7-p)) & 0x01) == 0) {
+					// Draw a backgroundColor
+					sendColor(bg);
+				}
+				else {
+					// Draw a white one
+					sendColor(fg);
+				}
+
+			}
+		
+		}
+
+		if(doScroll == 1) {
+			for(int i=(nbCar*8)-1;i<_width-1;i++) {
+				// Draw a backgroundColor
+				sendColor(bg);
+			}
+		}
+		CS_OFF();				
+	}
+
+	return(nbCar);
 }
 
 /* ============================================================================

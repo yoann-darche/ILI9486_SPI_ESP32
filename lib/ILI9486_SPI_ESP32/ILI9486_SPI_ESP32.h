@@ -8,6 +8,7 @@
 
 #include <SPI.h>
 #include "font.h"
+#include "TColor.hpp"
 
 /* Size of the screen */
 #define TFTWIDTH	320
@@ -61,35 +62,6 @@ typedef struct _VScrollData {
 	uint16_t BFA = 0;
 } VScrollData;
 
-/*============================================================================
-== Color définition                                                         ==
-============================================================================*/
-class TColor {
-
-	public:
-		TColor() { R=0; G=0; B=0; }
-		TColor(uint16_t c565) { set565(c565); }
-		TColor(uint8_t R, uint8_t G, uint8_t B) { setRGB(R,G,B); }
-
-		void setRGB(uint8_t r, uint8_t g, uint8_t b) { R=r; G=g; B=b; }
-		void set565(uint16_t color) { R=(((color>>11) & 0xb0011111) << 3) & 0xfc; B=(((color>>5)  & 0xb0111111) << 2) & 0xfc; G=((color & 0xb0011111) << 3) & 0xfc; }
-
-		uint8_t getR() { return R; }
-		uint8_t getG() { return G; }
-		uint8_t getB() { return B; }
-
-		// Output formated for ILI9486 18bit color
-		uint8_t getR6() { return (R & 0xFC); }
-		uint8_t getG6() { return (G & 0xFC); }
-		uint8_t getB6() { return (B & 0xFC); }
-
-
-	protected:
-	  uint8_t R;
-	  uint8_t G;
-	  uint8_t B;
-};
-
 
 /* ============================================================================
 ==  Classe definition                                                        ==
@@ -121,7 +93,7 @@ public:
 
 	void	drawPixel(int16_t x, int16_t y, uint16_t color);
 
-	void	fillScreen(uint16_t color);
+	void	fillScreen(TColor& color);
 	void	drawLine(int16_t x0, int16_t y0,int16_t x1, int16_t y1, uint16_t color);
 
 	void	drawFastVLine(int16_t x, int16_t y, int16_t h, uint16_t color);
@@ -135,8 +107,10 @@ public:
 
 	// Color Management
 	uint16_t color565(uint8_t r, uint8_t g, uint8_t b);
-	void setForegroundColor(uint16_t color);
+	void setForegroundColor(uint16_t color); // mode 565
 	void setBackgroundColor(uint16_t color);
+	void setForegroundColor(TColor &color);  // Extended mode
+	void setBackgroundColor(TColor &color);
 
 	// Scrolling Management
 	void setVerticalScrolling(uint16_t TFA, uint16_t VSA, uint16_t BFA);
@@ -145,10 +119,13 @@ public:
 	
 	// Characater function
 	void SetConsolFont(const unsigned char *Font, uint8_t sizeW, uint8_t sizeH);
-	uint8_t Locate(uint8_t x, uint8_t y);
+	
+	size_t write(const uint8_t *buffer, size_t size);
+	size_t writeAt(uint8_t x, uint8_t y, const uint8_t *Text, uint8_t TextLen);
+
+	void PrintStringAt(uint8_t x, uint8_t y, const char *Text, uint16_t TextStart, uint8_t TextLen);
+
 	void printBottomUpScroll(const char *Text);
-	void PrintChar(const char *Text);
-	void PrintCharAt(uint8_t x, uint8_t y, const char *Text, uint16_t TextStart, uint8_t TextLen);
 	
 
 protected:
@@ -167,15 +144,13 @@ protected:
 	uint8_t	tabcolor;
 
 	// Active color
-	uint16_t foregroundColor = 0xFFFF;
-	uint16_t backgroundColor = 0x0000;
+	TColor foregroundColor = TColor(0xFFFF);
+	TColor backgroundColor = TColor(0x0000);
 
 	// Scrolling Data
 	VScrollData VData;
 
 	// Character variable
-	uint8_t c_x = 0;
-	uint8_t c_y = 0;
 	uint8_t c_sizeW = 8;
 	uint8_t c_sizeH = 8;
 	const unsigned char * c_font = Consol_CGATHIN_8x8;
